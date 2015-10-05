@@ -1,16 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net/rpc"
+
+	"bufio"
 	"os"
 )
 
 type Args struct {
-	User_Symbol_String string
-	User_Budget        float64
+	Userstocksymbol string
+	UserBudget      float64
 }
 
 type Response1 struct {
@@ -19,7 +20,7 @@ type Response1 struct {
 	TradeId        int
 }
 
-type Request_Id1 struct {
+type GetId struct {
 	TradeId int
 }
 
@@ -30,53 +31,65 @@ type Response2 struct {
 
 // Create Client
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: ", os.Args[0], "server")
-		os.Exit(1)
-	}
-	serverAddress := os.Args[1]
 
-	client, err := rpc.DialHTTP("tcp", serverAddress+":6611")
+	client, err := rpc.DialHTTP("tcp", "localhost:1331")
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
+	/*
 
+		client, err := net.Dial("tcp", "127.0.0.1:1234")
+		if err != nil {
+			log.Fatal("dialing:", err)
+		}
+	*/
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter Stock Symbol along with the amount split percentage: ")
-	User_Symbol_String, _ := reader.ReadString('\n')
-	//	fmt.Println(User_Symbol_String)
+	fmt.Print("EEnter Stock Symbol along with the amount split percentage: ")
+	Userstocksymbol, _ := reader.ReadString('\n')
+	//	fmt.Println(Userstocksymbol)
 	fmt.Print("Enter the total budget: ")
-	var User_Budget float64
-	fmt.Scan(&User_Budget)
+	var UserBudget float64
+	fmt.Scan(&UserBudget)
 
-	args := Args{User_Symbol_String, User_Budget}
+	args := &Args{Userstocksymbol, UserBudget}
 
-	var obj_res Response1
-	err = client.Call("Calc_stock.Stock_price", args, &obj_res)
+	var sendreference Response1
+	err = client.Call("StockCalc.StockPrice", args, &sendreference)
 
 	if err != nil {
-		log.Fatal("arith error:", err)
+		log.Fatal("OMG error:", err)
 	}
 
-	fmt.Println("Stock Price along with the values  :   ", obj_res.Stocks)
-	fmt.Println("Unvested Amount  :   ", obj_res.UnvestedAmount)
-	fmt.Println("Trade Request_Id1: ", obj_res.TradeId)
+	/*	// Synchronous call
+		args := &Args{7, 8}
+		var reply int
+		c := jsonrpc.NewClient(client)
+		err = c.Call("Calculator.Add", args, &reply)
+		if err != nil {
+			log.Fatal("arith error:", err)
+		}
+		fmt.Printf("Result: %d+%d=%d\n", args.X, args.Y, reply)
+	*/
+
+	fmt.Println("Stock Price along with the values  :  ", sendreference.Stocks)
+	fmt.Println("Unvested Amount: ", sendreference.UnvestedAmount)
+	fmt.Println("Trade Request_Id1: ", sendreference.TradeId)
 
 	fmt.Print("Enter TradeID to check the portfolio: ")
-	var Id2 int
-	fmt.Scan(&Id2)
+	var TradeId int
+	fmt.Scan(&TradeId)
 
-	Request_Id1 := Request_Id1{Id2}
+	id := GetId{TradeId}
 
-	var Res2 Response2
+	var sendreference2 Response2
 
-	err = client.Call("Calc_stock.Updated_price_func", Request_Id1, &Res2)
+	err = client.Call("StockCalc.UpdStockPrice", id, &sendreference2)
 
 	if err != nil {
 		log.Fatal("Update error:", err)
 	}
 
-	fmt.Println("Updated Stock Response: ", Res2.Stocks)
-	fmt.Println("Unvested Amount: ", Res2.UnvestedAmount)
+	fmt.Println("Updated Stock Response: ", sendreference2.Stocks)
+	fmt.Println("Unvested Amount: ", sendreference2.UnvestedAmount)
 
 }
