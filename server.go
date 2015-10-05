@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"net/http"
+
+	"encoding/json"
+
 	"net/rpc"
 	"strconv"
 	"strings"
@@ -27,6 +29,34 @@ type fmeta struct {
 	Count int32  `json:"-"`
 }
 
+/*
+
+type MyResponse struct {
+	List struct {
+		Meta struct {
+			Type  string `json:"type"`
+			Start int    `json:"start"`
+			Count int    `json:"count"`
+		} `json:"meta"`
+		Resources []struct {
+			Resource struct {
+				Classname string `json:"classname"`
+				Fields    struct {
+					Name    string `json:"name"`
+					Price   string `json:"price"`
+					Symbol  string `json:"symbol"`
+					Ts      string `json:"ts"`
+					Type    string `json:"type"`
+					Utctime string `json:"utctime"`
+					Volume  string `json:"volume"`
+				} `json:"fields"`
+			} `json:"resource"`
+		} `json:"resources"`
+	} `json:"list"`
+}
+
+
+*/
 type fresources struct {
 	Resource fresource `json:"resource"`
 }
@@ -41,188 +71,216 @@ type ffields struct {
 	Symbol string `json:"symbol"`
 }
 
-type Args1 struct {
-	Server_side_symbol string
-	Server_side_budget float64
+type Args struct {
+	Userstocksymbol string
+	UserBudget      float64
 }
 
-type Updated_Response1 struct {
+type UpdatedResponse1 struct {
 	Stocks         string  `json:"stocksymbol"`
 	UnvestedAmount float64 `json:"stockprice"`
 	TradeId        int     `json:"id"`
 }
 
-type Updated_Id struct {
+type SendId struct {
 	TradeId int `json:"id"`
 }
 
-type Updated_Res2 struct {
+type UpdatedResponse2 struct {
 	Stocks         string  `json:"stocksymbol"`
 	UnvestedAmount float64 `json:"stockprice"`
 }
 
-type Calc_stock int
+type StockCalc int
 
-var StoreResp map[int]Updated_Response1
+var M map[int]UpdatedResponse1
 
-func (t *Calc_stock) Stock_price(args_ser *Args1, updated_Res1 *Updated_Response1) error {
-	fmt.Println("Hello World")
-	str_temp := string(args_ser.Server_side_symbol[:])
-	fmt.Println(str_temp)
-	str_temp = strings.Replace(str_temp, ":", ",", -1)
-	str_temp = strings.Replace(str_temp, "%", ",", -1)
-	str_temp = strings.Replace(str_temp, ",,", ",", -1)
-	str_temp = strings.Trim(str_temp, " ")
-	str_temp = strings.Replace(str_temp, "\"", "", -1)
-	str_temp = strings.TrimSpace(str_temp)
-	str_temp = strings.TrimSuffix(str_temp, ",")
-	final_val := strings.Split(str_temp, ",")
+func (t *StockCalc) StockPrice(args *Args, quote *UpdatedResponse1) error {
 
-	var Url_send string
+	str1 := string(args.Userstocksymbol[:])
 
-	for i := 0; i < len(final_val); i++ {
+	str1 = strings.Replace(str1, ":", ",", -1)
+	str1 = strings.Replace(str1, "%", ",", -1)
+	str1 = strings.Replace(str1, ",,", ",", -1)
+	//
+	//type url_gen struct{}
+
+	//func (*url_gen) concate_url() error {
+
+	//	return nil
+	//
+	str1 = strings.Trim(str1, " ")
+	str1 = strings.Replace(str1, "\"", "", -1)
+	str1 = strings.TrimSpace(str1)
+	//}
+	str1 = strings.TrimSuffix(str1, ",")
+	finalstr1 := strings.Split(str1, ",")
+
+	var ReqUrl string
+
+	for i := 0; i < len(finalstr1); i++ {
 		i = i + 1
 
-		temp, _ := strconv.ParseFloat(final_val[i], 64)
-		temp = (temp * args_ser.Server_side_budget * 0.01)
+		temp, _ := strconv.ParseFloat(finalstr1[i], 64)
+		temp = (temp * args.UserBudget * 0.01)
 
-		Url_send = Url_send + (final_val[i-1] + ",")
+		ReqUrl = ReqUrl + (finalstr1[i-1] + ",")
 
 	}
-	Url_send = strings.TrimSuffix(Url_send, ",")
+	ReqUrl = strings.TrimSuffix(ReqUrl, ",")
 
-	Str_url_final := "http://finance.yahoo.com/webservice/v1/symbols/" + Url_send + "/Updated_Response1?format=json"
-	fmt.Println(Str_url_final)
-	client_call1 := &http.Client{}
+	UrlStr := "http://finance.yahoo.com/webservice/v1/symbols/" + ReqUrl + "/quote?format=json"
 
-	toy, _ := client_call1.Get(Str_url_final)
-	req, _ := http.NewRequest("GET", Str_url_final, nil)
+	client := &http.Client{}
+
+	resp, _ := client.Get(UrlStr)
+	req, _ := http.NewRequest("GET", UrlStr, nil)
 
 	req.Header.Add("If-None-Match", "application/json")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	// make request
-	toy, _ = client_call1.Do(req)
-	if toy.StatusCode >= 200 && toy.StatusCode < 300 {
-		var hi Call
-		x, _ := ioutil.ReadAll(toy.Body)
+	resp, _ = client.Do(req)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		var C Call
+		xx, _ := ioutil.ReadAll(resp.Body)
 
-		err := json.Unmarshal(x, &hi)
+		err := json.Unmarshal(xx, &C)
 
-		n := len(final_val)
+		n := len(finalstr1)
 
 		res := make([]float64, n, n)
 
 		for i := 0; i < n; i++ {
 			i = i + 1
-			temp_store, _ := strconv.ParseFloat(final_val[i], 64)
-			res[i] = (temp_store * args_ser.Server_side_budget * 0.01)
+			TempFloat, _ := strconv.ParseFloat(finalstr1[i], 64)
+			res[i] = (TempFloat * args.UserBudget * 0.01)
 
 		}
 
-		var buff_obj bytes.Buffer
-		add1 := 0
-		for _, Sample := range hi.List.Resources {
+		var buffRead bytes.Buffer
+		addCount := 0
+		for _, Sample := range C.List.Resources {
 
-			temp_var_1 := Sample.Resource.Fields.Symbol
-			temp_var_2, _ := strconv.ParseFloat(Sample.Resource.Fields.Price, 64)
-			temp_var_3 := (int)(res[add1+1] / temp_var_2)
-			temp4 := math.Mod(res[add1+1], temp_var_2)
-			add1 = add1 + 2
+			temp1 := Sample.Resource.Fields.Symbol
+			temp2, _ := strconv.ParseFloat(Sample.Resource.Fields.Price, 64)
+			temp3 := (int)(res[addCount+1] / temp2)
 
-			updated_Res1.Stocks = fmt.Sprintf("%s:%g:%d", temp_var_1, temp_var_2, temp_var_3)
-			updated_Res1.UnvestedAmount = updated_Res1.UnvestedAmount + temp4
-			buff_obj.WriteString(updated_Res1.Stocks)
-			buff_obj.WriteString(",")
+			/*
+
+				if capacity > price {
+					bought, _ := math.Modf(capacity / price)
+					unvested = unvested + (capacity - (bought * price))
+					fmt.Println("bought:", bought, "unves
+
+
+			*/
+			temp4 := math.Mod(res[addCount+1], temp2)
+			addCount = addCount + 2
+
+			quote.Stocks = fmt.Sprintf("%s:%g:%d", temp1, temp2, temp3)
+			quote.UnvestedAmount = quote.UnvestedAmount + temp4
+			buffRead.WriteString(quote.Stocks)
+			buffRead.WriteString(",")
 		}
-		updated_Res1.TradeId = updated_Res1.TradeId + 1
-		updated_Res1.Stocks = (buff_obj.String())
-		updated_Res1.Stocks = strings.TrimSuffix(updated_Res1.Stocks, ",")
+		quote.TradeId = quote.TradeId + 1
+		quote.Stocks = (buffRead.String())
+		quote.Stocks = strings.TrimSuffix(quote.Stocks, ",")
 
-		StoreResp = map[int]Updated_Response1{
-			updated_Res1.TradeId: {updated_Res1.Stocks, updated_Res1.UnvestedAmount, updated_Res1.TradeId},
+		M = map[int]UpdatedResponse1{
+			quote.TradeId: {quote.Stocks, quote.UnvestedAmount, quote.TradeId},
 		}
 
 		if err == nil {
-			fmt.Println("Completed")
+			fmt.Println("")
 		}
 	} else {
-		fmt.Println(toy.Status)
+		fmt.Println(resp.Status)
 
 	}
 	return nil
 }
 
-func (t *Calc_stock) Updated_price_func(id *Updated_Id, var_update *Updated_Res2) error {
+func (t *StockCalc) UpdStockPrice(id *SendId, upRes2 *UpdatedResponse2) error {
 
-	var x1, y1 string
-	var fin_val_store_split []string
+	var TempStr1, TempStr2 string
+	var strArr []string
 
-	var tmp = StoreResp[id.TradeId]
-	y1 = string(tmp.Stocks[:])
-	y1 = strings.Replace(y1, ",", ":", -1)
-	y1 = strings.Trim(y1, " ")
-	y1 = strings.TrimSpace(y1)
+	var tmp = M[id.TradeId]
+	TempStr2 = string(tmp.Stocks[:])
+	TempStr2 = strings.Replace(TempStr2, ",", ":", -1)
+	TempStr2 = strings.Trim(TempStr2, " ")
 
-	fin_val_store_split = strings.Split(y1, ":")
+	/*
+		length := s.Query.Count
+		sliceLength := make([]string, length, length*2)
 
-	for i := 0; i < len(fin_val_store_split); i++ {
-		x1 = x1 + "," + fin_val_store_split[i]
+		for i := 0; i < s.Query.Count; i++ {
+			sliceLength[i] = s.Query.Results.Quote[i].LastTradePriceOnly
+			fmt.Printf(sliceLength[i])
+		}
+	*/
+	TempStr2 = strings.TrimSpace(TempStr2)
+
+	strArr = strings.Split(TempStr2, ":")
+
+	for i := 0; i < len(strArr); i++ {
+		TempStr1 = TempStr1 + "," + strArr[i]
 		i = i + 2
 
 	}
 
-	x1 = strings.TrimLeft(x1, ",")
+	TempStr1 = strings.TrimLeft(TempStr1, ",")
 
-	Str_url_final := "http://finance.yahoo.com/webservice/v1/symbols/" + x1 + "/Updated_Response1?format=json"
+	UrlStr := "http://finance.yahoo.com/webservice/v1/symbols/" + TempStr1 + "/quote?format=json"
 
-	client_call1 := &http.Client{}
+	client := &http.Client{}
 
-	toy, _ := client_call1.Get(Str_url_final)
-	req, _ := http.NewRequest("GET", Str_url_final, nil)
+	resp, _ := client.Get(UrlStr)
+	req, _ := http.NewRequest("GET", UrlStr, nil)
 
 	req.Header.Add("If-None-Match", "application/json")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	// make request
-	toy, _ = client_call1.Do(req)
-	if toy.StatusCode >= 200 && toy.StatusCode < 300 {
-		var hi Call
+	resp, _ = client.Do(req)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		var C Call
 
-		x, _ := ioutil.ReadAll(toy.Body)
+		xx, _ := ioutil.ReadAll(resp.Body)
 
-		_ = json.Unmarshal(x, &hi)
+		_ = json.Unmarshal(xx, &C)
 
-		var buff_val2 bytes.Buffer
+		var buf bytes.Buffer
 
 		k := 1
-		for _, Sample := range hi.List.Resources {
+		for _, Sample := range C.List.Resources {
 
-			temp_var_1 := Sample.Resource.Fields.Symbol
-			temp_var_2, _ := strconv.ParseFloat(Sample.Resource.Fields.Price, 64)
-			temp_var_3, _ := strconv.ParseFloat(fin_val_store_split[k], 64)
+			temp1 := Sample.Resource.Fields.Symbol
+			temp2, _ := strconv.ParseFloat(Sample.Resource.Fields.Price, 64)
+			temp3, _ := strconv.ParseFloat(strArr[k], 64)
 
-			if temp_var_3 > temp_var_2 {
-				var_update.Stocks = fmt.Sprintf("%s:%s%v:%v", temp_var_1, "-", temp_var_2, fin_val_store_split[k+1])
-				buff_val2.WriteString(var_update.Stocks)
-				buff_val2.WriteString(",")
+			if temp3 > temp2 {
+				upRes2.Stocks = fmt.Sprintf("%s:%s%v:%v", temp1, "-", temp2, strArr[k+1])
+				buf.WriteString(upRes2.Stocks)
+				buf.WriteString(",")
 
-			} else if temp_var_3 < temp_var_2 {
+			} else if temp3 < temp2 {
 
-				var_update.Stocks = fmt.Sprintf("%s:%s%v:%v", temp_var_1, "+", temp_var_2, fin_val_store_split[k+1])
-				buff_val2.WriteString(var_update.Stocks)
-				buff_val2.WriteString(",")
+				upRes2.Stocks = fmt.Sprintf("%s:%s%v:%v", temp1, "+", temp2, strArr[k+1])
+				buf.WriteString(upRes2.Stocks)
+				buf.WriteString(",")
 
 			} else {
 
-				var_update.Stocks = fmt.Sprintf("%s:%v:%v", temp_var_1, temp_var_2, fin_val_store_split[k+1])
-				buff_val2.WriteString(var_update.Stocks)
-				buff_val2.WriteString(",")
+				upRes2.Stocks = fmt.Sprintf("%s:%v:%v", temp1, temp2, strArr[k+1])
+				buf.WriteString(upRes2.Stocks)
+				buf.WriteString(",")
 			}
 
-			var_update.Stocks = (buff_val2.String())
-			var_update.Stocks = strings.TrimSuffix(var_update.Stocks, ",")
-			var_update.UnvestedAmount = tmp.UnvestedAmount
+			upRes2.Stocks = (buf.String())
+			upRes2.Stocks = strings.TrimSuffix(upRes2.Stocks, ",")
+			upRes2.UnvestedAmount = tmp.UnvestedAmount
 			k = k + 3
 		}
 	}
@@ -230,11 +288,11 @@ func (t *Calc_stock) Updated_price_func(id *Updated_Id, var_update *Updated_Res2
 }
 
 func main() {
-	stk := new(Calc_stock)
-	rpc.Register(stk)
+	stockcalc := new(StockCalc)
+	rpc.Register(stockcalc)
 	rpc.HandleHTTP()
 
-	err := http.ListenAndServe(":6611", nil)
+	err := http.ListenAndServe(":1331", nil)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
